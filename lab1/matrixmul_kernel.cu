@@ -49,15 +49,12 @@
 //! @param g_odata  output data in global memory
 ////////////////////////////////////////////////////////////////////////////////
 // Matrix multiplication kernel thread specification
-__global__ void MatrixMulKernel(Matrix M, Matrix N, Matrix P)
+
+__global__ void MatrixMulKernel(Matrix Md, Matrix Nd, Matrix Pd)
 {
 	//Multiply the two matrices
 
-
-
-
-
-
+ 	Pd.elements[threadIdx.x] = 5;
 
 }
 
