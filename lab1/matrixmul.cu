@@ -159,9 +159,8 @@ void MatrixMulOnDevice(const Matrix M, const Matrix N, Matrix P)
 	
 	dim3 dimBlock(1, 1);
 	dim3 dimGrid(MATRIX_SIZE, MATRIX_SIZE);
-	//dim3 dimGrid(N.width / dimBlock.x, M.height / dimBlock.y);i
 	
-	MatrixMulKernel<<<dimBlock, dimGrid>>>(M,N,P);	
+	MatrixMulKernel<<<dimBlock, dimGrid>>>(X,Y,Z);	
 	cudaThreadSynchronize();
 
 	CopyFromDeviceMatrix(P, Z);	

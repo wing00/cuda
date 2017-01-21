@@ -50,12 +50,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Matrix multiplication kernel thread specification
 
-__global__ void MatrixMulKernel(Matrix Md, Matrix Nd, Matrix Pd)
+__global__ void MatrixMulKernel(Matrix M, Matrix N, Matrix P)
 {
 	//Multiply the two matrices
-
- 	Pd.elements[threadIdx.x] = 5;
-
+	float value = 0;
+	for (int i = 0; i < M.width; ++i) {
+	value += M.elements[threadIdx.y * M.width + i] * N.elements[i * N.height + threadIdx.x];
+	} 
+	P.elements[threadIdx.y * P.width + threadIdx.x] = value;
 }
 
 #endif // #ifndef _MATRIXMUL_KERNEL_H_
