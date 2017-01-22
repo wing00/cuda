@@ -158,18 +158,13 @@ void MatrixMulOnDevice(const Matrix M, const Matrix N, Matrix P)
 	CopyToDeviceMatrix(Z, P);
 	
 	dim3 dimBlock(1, 1);
-	dim3 dimGrid(MATRIX_SIZE, MATRIX_SIZE);
+	dim3 dimGrid(M.width, N.height);
 	
 	MatrixMulKernel<<<dimBlock, dimGrid>>>(X,Y,Z);	
 	cudaThreadSynchronize();
 
 	CopyFromDeviceMatrix(P, Z);	
 	
-	for(int i = 0; i < P.height*P.width; i++) {
-		
-		printf("%f ", P.elements[i]);
-		printf("\n");		
-	}
 	cudaFree(&X);
 	cudaFree(&Y);
 	cudaFree(&Z);
