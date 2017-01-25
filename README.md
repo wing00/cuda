@@ -1,5 +1,6 @@
 # EECS 468, Winter 2017
 Code for Northwestern's EECS 468 (Programming Massively Parallel Processors with CUDA). 
+
 Contributors: Scott Young, Kapil Garg
 
 ## Labs
