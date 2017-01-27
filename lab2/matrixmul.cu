@@ -63,7 +63,6 @@ int ReadFile(Matrix* M, char* file_name);
 void WriteFile(Matrix M, char* file_name);
 void FreeDeviceMatrix(Matrix* M);
 void FreeMatrix(Matrix* M);
-
 void MatrixMulOnDevice(const Matrix M, const Matrix N, Matrix P);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +109,6 @@ int main(int argc, char** argv) {
 
 	// M * N on the device
 	MatrixMulOnDevice(M, N, P);
-    
 	printf("GPU computation complete\n");
 	// compute the matrix multiplication on the CPU for comparison
 	Matrix reference = AllocateMatrix(P.height, P.width, 0);
@@ -147,15 +145,25 @@ void MatrixMulOnDevice(const Matrix M, const Matrix N, Matrix P)
 	CopyToDeviceMatrix(Md, M);
 	Matrix Nd = AllocateDeviceMatrix(N);
 	CopyToDeviceMatrix(Nd, N);
-
 	// Allocate P on the device
 	Matrix Pd = AllocateDeviceMatrix(P);
 	CopyToDeviceMatrix(Pd, P); // Clear memory
-
 	// Setup the execution configuration
+	cudaDeviceProp prop;
+	cudaGetDeviceProperties(&prop, 0);
+
+	printf("Threads per block %d\n", prop.maxThreadsPerBlock);
+	int tile_width = 4;
+	int tile_height = 4;
+	int grid_width = 4;
+	int grid_height = 4;
+
+	dim3 dimGrid(grid_width, grid_height, 1);
+	dim3 dimBlock(tile_width, tile_height, 1);
 
 	// Launch the device computation threads!
-
+	MatrixMulKernel <<<dimGrid, dimBlock>>> (Md, Nd, Pd);
+	cudaThreadSynchronize();
 	// Read P from the device
 	CopyFromDeviceMatrix(P, Pd); 
 
@@ -164,7 +172,6 @@ void MatrixMulOnDevice(const Matrix M, const Matrix N, Matrix P)
 	FreeDeviceMatrix(&Nd);
 	FreeDeviceMatrix(&Pd);
 }
-
 // Allocate a device matrix of same size as M.
 Matrix AllocateDeviceMatrix(const Matrix M)
 {

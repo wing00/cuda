@@ -55,7 +55,8 @@ __global__ void MatrixMulKernel(Matrix M, Matrix N, Matrix P)
 	//Multiply the two matrices
 	float value = 0;
 	for (int i = 0; i < M.width; ++i) {
-	value += M.elements[threadIdx.y * M.width + i] * N.elements[i * N.width + threadIdx.x];
+		value += M.elements[threadIdx.y * M.width + i] * N.elements[i * N.height + threadIdx.x];
+
 	} 
 	P.elements[threadIdx.y * P.width + threadIdx.x] = value;
 }
