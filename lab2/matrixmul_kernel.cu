@@ -59,9 +59,9 @@ __global__ void MatrixMulKernel(Matrix M, Matrix N, Matrix P)
 	__shared__ float Mshared[tile_width][tile_width];
 	__shared__ float Nshared[tile_width][tile_width];
 
-	float value = 0;
+	float value = 0.0;
 
-	for (int i = 0; i < (M.width + tile_width - 1) / tile_width; ++i) {
+	for (int i = 0; i < (M.width - 1) / tile_width + 1; ++i) {
 		int xidx = threadIdx.x + i * tile_width;
 		int yidx = threadIdx.y + i * tile_width;
 
@@ -70,15 +70,16 @@ __global__ void MatrixMulKernel(Matrix M, Matrix N, Matrix P)
 		} else {
 			Mshared[threadIdx.y][threadIdx.x] = 0.0;
 		}
+
 		if(yidx < N.height && col < N.width) {
-			Nshared[threadIdx.y][threadIdx.x] = N.elements[col + yidx * N.height];
+			Nshared[threadIdx.y][threadIdx.x] = N.elements[col + yidx * N.width];
 		} else {
 			Nshared[threadIdx.y][threadIdx.x] = 0.0;
 		}
 
 		__syncthreads();
 
-		for (int j = 0; j < tile_width; ++j) {
+		for (int j = 0; j < tile_width; j++) {
 			value += Mshared[threadIdx.y][j] * Nshared[j][threadIdx.x];
 			__syncthreads();
 		}

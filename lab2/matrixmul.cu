@@ -151,8 +151,8 @@ void MatrixMulOnDevice(const Matrix M, const Matrix N, Matrix P)
 	CopyToDeviceMatrix(Pd, P); // Clear memory
 
 	// Setup the execution configuration
-	int tile_width = 32;
-	dim3 dimGrid((P.width + tile_width ) / tile_width, (P.height + tile_width) / tile_width, 1);
+	const int tile_width = 32;
+	dim3 dimGrid((P.width - 1) / tile_width + 1, (P.height -1) / tile_width + 1, 1);
 	dim3 dimBlock(tile_width, tile_width, 1);
 
 	// Launch the device computation threads!
