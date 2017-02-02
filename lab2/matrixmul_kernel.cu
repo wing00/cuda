@@ -51,17 +51,30 @@
 // Matrix multiplication kernel thread specification
 __global__ void MatrixMulKernel(Matrix M, Matrix N, Matrix P)
 {
-	int row = blockIdx.y * blockDim.y + threadIdx.y;
-	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > M.height || col > N.width) {
-		return;
+	const int tile_width = 32;
+
+	int row = blockIdx.y * tile_width + threadIdx.y;
+	int col = blockIdx.x * tile_width + threadIdx.x;
+
+	if(row >= P.height || col >= P.width || row >= M.height || col >= N.width) {
+		return;  // outside bounds don't bother calculating
 	}
 
-	float value = 0;
-	for (int i = 0; i < M.width; i++) {
-		value += M.elements[row * M.width + i] * N.elements[i * N.height + col];
+	__shared__ float Mshared[tile_width][tile_width];
+	__shared__ float Nshared[tile_width][tile_width];
 
-        }
+	float value = 0;
+
+	for (int i = 0; i < M.width/tile_width; i++) {
+		Mshared[threadIdx.y][threadIdx.x] = (threadIdx.x + (i * tile_width) < M.width) ? M.elements[row * M.width + (i * tile_width + threadIdx.x)] : 0.0;
+		Nshared[threadIdx.y][threadIdx.x] = ((threadIdx.y + i * tile_width) < N.height) ? N.elements[col + (i * tile_width + threadIdx.y)* N.height] : 0.0;
+
+		__syncthreads();
+		for (int j = 0; j < blockDim.x; j++) {
+			value += Mshared[threadIdx.y][j] * Nshared[j][threadIdx.x];
+			__syncthreads();
+		}
+	}
         P.elements[row * P.width + col] = value;
 }
 

@@ -1,0 +1,9 @@
+#!/bin/bash
+echo "txt test case"
+./../../bin/linux/release/lab2 dimensions.txt matrix1.txt matrix2.txt tests/16x16.txt
+echo "max test case"
+./../../bin/linux/release/lab2 tests/max.txt tests/max1.txt tests/max2.txt tests/_max.txt
+echo "1024x1 case"
+./../../bin/linux/release/lab2 tests/1024x1.txt tests/1024_1.txt tests/1024_2.txt tests/_1x1024.txt
+echo "1x1024 case"
+./../../bin/linux/release/lab2 tests/1x1024.txt tests/1024_1.txt tests/max1.txt tests/_1024x1.txt

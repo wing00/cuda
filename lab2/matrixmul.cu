@@ -109,12 +109,12 @@ int main(int argc, char** argv) {
 
 	// M * N on the device
 	MatrixMulOnDevice(M, N, P);
-	printf("GPU computation complete\n");
+	// printf("GPU computation complete\n");
 	// compute the matrix multiplication on the CPU for comparison
 	Matrix reference = AllocateMatrix(P.height, P.width, 0);
 	computeGold(reference.elements, M.elements, N.elements, M.height, M.width, N.width);
         
-	printf("CPU computation complete\n");
+	// printf("CPU computation complete\n");
 	// in this case check if the result is equivalent to the expected soluion
 	CUTBoolean res = cutComparefe(reference.elements, P.elements, P.height*P.width, 0.001f);
 	printf("Test %s\n", (1 == res) ? "PASSED" : "FAILED");
@@ -148,30 +148,25 @@ void MatrixMulOnDevice(const Matrix M, const Matrix N, Matrix P)
 	// Allocate P on the device
 	Matrix Pd = AllocateDeviceMatrix(P);
 	CopyToDeviceMatrix(Pd, P); // Clear memory
+
 	// Setup the execution configuration
-	cudaDeviceProp prop;
-	cudaGetDeviceProperties(&prop, 0);
-
-	printf("Threads per block %d\n", prop.maxThreadsPerBlock);
-	int tile_width = 4;
-	int tile_height = 4;
-	int grid_width = 4;
-	int grid_height = 4;
-
-	dim3 dimGrid(grid_width, grid_height, 1);
-	dim3 dimBlock(tile_width, tile_height, 1);
+	int tile_width = 32;
+	dim3 dimGrid((P.width - 1) / tile_width + 1, (P.height - 1) / tile_width + 1, 1);
+	dim3 dimBlock(tile_width, tile_width, 1);
 
 	// Launch the device computation threads!
 	MatrixMulKernel <<<dimGrid, dimBlock>>> (Md, Nd, Pd);
 	cudaThreadSynchronize();
+
 	// Read P from the device
-	CopyFromDeviceMatrix(P, Pd); 
+	CopyFromDeviceMatrix(P, Pd);
 
 	// Free device matrices
 	FreeDeviceMatrix(&Md);
 	FreeDeviceMatrix(&Nd);
 	FreeDeviceMatrix(&Pd);
 }
+
 // Allocate a device matrix of same size as M.
 Matrix AllocateDeviceMatrix(const Matrix M)
 {
