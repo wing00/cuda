@@ -45,6 +45,7 @@ static uint32_t next_bin(uint32_t pix)
 // The key point here is that the pixels (and thus the bin-ids) are *NOT*
 // randomly distributed ... a given pixel tends to be similar to the
 // pixels near it.
+
 static uint32_t **generate_histogram_bins()
 {
     uint32_t **input = (uint32_t**)alloc_2d(INPUT_HEIGHT, INPUT_WIDTH, sizeof(uint32_t));
@@ -83,28 +84,31 @@ int main(int argc, char* argv[])
     // being associated with a pixel in a 2D image.
     uint32_t **input = generate_histogram_bins();
 
-    TIME_IT("ref_2dhisto",
-            1000,
-            ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
+    TIME_IT("ref_2dhisto", 1000, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
 
-    /* Include your setup code below (temp variables, function calls, etc.) */
+    // init
 
+    uint32_t *deviceImage = AllocateDeviceImage(INPUT_HEIGHT, INPUT_WIDTH);
+    uint8_t *deviceBins = AllocateDeviceBins(HISTO_HEIGHT, HISTO_WIDTH);
 
+    ToDeviceImage(deviceImage, input, INPUT_HEIGHT, INPUT_WIDTH);
+    ToDeviceBins(deviceBins, kernel_bins, HISTO_HEIGHT, HISTO_WIDTH); // zeros
 
-    /* End of setup code */
-
-    /* This is the call you will use to time your parallel implementation */
     TIME_IT("opt_2dhisto",
-            1000,
-            opt_2dhisto( /*Define your own function parameters*/ );)
+             1,
+             opt_2dhisto(deviceImage, deviceBins, INPUT_HEIGHT, INPUT_WIDTH);)
 
-    /* Include your teardown code below (temporary variables, function calls, etc.) */
+    // clean
+    uint32_t *image_test = (uint32_t*)malloc(INPUT_HEIGHT * INPUT_WIDTH * sizeof(uint32_t));
 
+    FromDeviceImage(image_test, deviceImage, INPUT_HEIGHT, INPUT_WIDTH);
+    FromDeviceBins(kernel_bins, deviceBins, HISTO_HEIGHT, HISTO_WIDTH);
 
+    FreeDeviceImage(deviceImage);
+    FreeDeviceBins(deviceBins);
 
-    /* End of teardown code */
-
-    int passed=1;
+    // check
+    int passed = 1;
     for (int i=0; i < HISTO_HEIGHT*HISTO_WIDTH; i++){
         if (gold_bins[i] != kernel_bins[i]){
             passed = 0;
