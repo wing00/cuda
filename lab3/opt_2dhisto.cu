@@ -11,19 +11,21 @@
 __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t height, size_t width) {
 
 	size_t globalTid = blockIdx.x * blockDim.x + threadIdx.x;
-	size_t numThreads = blockIdx.x * blockDim.x;
-
+	size_t numThreads = blockDim.x;
+	printf("%d\n", blockIdx.x);
 
 	// init histogram for each block
 	__shared__ uint32_t partialHist[HISTO_WIDTH + 1];
-	for (size_t i = 0; i < HISTO_WIDTH + 1; i++) {
-		partialHist[i] = 0;
-	}
+
+	partialHist[globalTid] = 0;
+
 	__syncthreads();
 
-	//
-	for (size_t j = 0; j < height * width; j++){
+
+
+	for (size_t j = globalTid; j < height * width; j += numThreads){
 		uint32_t value = deviceImage[j];
+
 		if(partialHist[value] < UINT8_MAX) {
 			atomicAdd(&partialHist[value], 1);
 		}
@@ -31,13 +33,10 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 
 	__syncthreads();
 
-	for (size_t k = 0; k < HISTO_WIDTH; k++) {
-		if(deviceBins32[k] < UINT8_MAX) {
-			atomicAdd(&deviceBins32[k], partialHist[k]);
-		}
-	}
-	__syncthreads();
 
+	// sum partials 255 *
+
+	atomicAdd(&deviceBins32[globalTid], partialHist[globalTid]);
 
 }
 
@@ -49,10 +48,7 @@ __global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins, siz
 
 void opt_2dhisto(uint32_t *deviceImage, uint32_t *deviceBins32, uint8_t *deviceBins, size_t height, size_t width) {
 	dim3 dimGrid((height * width - 1)/HISTO_WIDTH + 1, 1, 1);
-
-	HistKernel <<<1, 1>>> (deviceImage, deviceBins32, height, width);
-	cudaThreadSynchronize();
-
+	HistKernel <<<1, HISTO_WIDTH>>> (deviceImage, deviceBins32, height, width);
 	HistKernel32to8 <<<HISTO_HEIGHT, HISTO_WIDTH>>> (deviceBins32, deviceBins, height, width);
 	cudaThreadSynchronize();
 }
