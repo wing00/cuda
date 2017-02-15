@@ -85,7 +85,6 @@ int main(int argc, char* argv[])
     TIME_IT("ref_2dhisto", 1000, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
 
     // init
-
     uint32_t *deviceImage = AllocateDeviceImage(INPUT_HEIGHT, INPUT_WIDTH);
     uint32_t *deviceBins32 = AllocateDeviceImage(HISTO_HEIGHT, HISTO_WIDTH);
     uint8_t *deviceBins = AllocateDeviceBins(HISTO_HEIGHT, HISTO_WIDTH);
@@ -97,13 +96,12 @@ int main(int argc, char* argv[])
              1000,
              opt_2dhisto(deviceImage, deviceBins32, deviceBins, INPUT_HEIGHT, INPUT_WIDTH);)
 
-    // clean
     FromDeviceBins(kernel_bins, deviceBins, HISTO_HEIGHT, HISTO_WIDTH);
 
+    // clean
     FreeDeviceImage(deviceImage);
     FreeDeviceImage(deviceBins32);
     FreeDeviceBins(deviceBins);
-
 
     // check
 
@@ -112,7 +110,7 @@ int main(int argc, char* argv[])
         if (gold_bins[i] != kernel_bins[i]){
             passed = 0;
             //printf("%d %d %d\n", i, gold_bins[i], kernel_bins[i]);
-            //break;
+            break;
         }
     }
     (passed) ? printf("\n    Test PASSED\n") : printf("\n    Test FAILED\n");

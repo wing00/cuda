@@ -15,6 +15,7 @@ void FromDeviceImage(uint32_t *hostImage, uint32_t *deviceImage, size_t height, 
 void FromDeviceBins(uint8_t *hostBins, uint8_t *deviceBins, size_t height, size_t width);
 
 void FreeDeviceImage(uint32_t *deviceImage);
+void FreeDeviceBins32(uint32_t *deviceBins32);
 void FreeDeviceBins(uint8_t *deviceBins);
 
 

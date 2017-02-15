@@ -31,7 +31,7 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 	}
 	__syncthreads();
 
-	// sum partials 255
+	// sum partials
 	atomicAdd(&deviceBins32[threadIdx.x], partialHist[threadIdx.x]);
 
 }
@@ -43,8 +43,9 @@ __global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins, siz
 
 
 void opt_2dhisto(uint32_t *deviceImage, uint32_t *deviceBins32, uint8_t *deviceBins, size_t height, size_t width) {
-	//8 multiprocessors * 2 blocks per
-	cudaMemset(deviceBins32, 0, HISTO_HEIGHT * HISTO_WIDTH * sizeof(uint32_t));
+	cudaMemset(deviceBins32, 0, HISTO_HEIGHT * HISTO_WIDTH * sizeof(uint32_t)); //zeros
+
+	//8 multiprocessors * 2 blocks
 
 	HistKernel <<<16, HISTO_WIDTH>>> (deviceImage, deviceBins32, height, width);
 	HistKernel32to8 <<<HISTO_HEIGHT, HISTO_WIDTH>>> (deviceBins32, deviceBins, height, width);
@@ -84,13 +85,6 @@ void ToDeviceImage(uint32_t *deviceImage, uint32_t *input[],  size_t height, siz
 		cudaMemcpy(deviceImage + i * width, input[i], size, cudaMemcpyHostToDevice);
 	}
 }
-
-void ToDeviceBins32(uint32_t *deviceBins, uint32_t *input,  size_t height, size_t width) {
-	int size = width * sizeof(uint32_t);
-	cudaMemcpy(deviceBins, input, size, cudaMemcpyHostToDevice);
-
-}
-
 
 void ToDeviceBins(uint8_t *deviceBins, uint8_t *hostBins, size_t height, size_t width) {
 	int size = height * width * sizeof(uint8_t);
