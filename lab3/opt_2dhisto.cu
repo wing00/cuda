@@ -21,7 +21,6 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 
 	__syncthreads();
 
-
 	for (size_t j = globalTid; j < height * width; j += numThreads) {
 		uint32_t value = deviceImage[j];
 
@@ -38,7 +37,8 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 
 __global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins, size_t height, size_t width) {
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
-	deviceBins[index] = (deviceBins32[index] < UINT8_MAX) ? (uint8_t) deviceBins32[index] : (uint8_t) UINT8_MAX;
+	//overloaded nv min function
+	deviceBins[index] = (uint8_t) min(deviceBins32[index], UINT8_MAX);
 }
 
 
