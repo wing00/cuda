@@ -11,32 +11,28 @@
 __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t height, size_t width) {
 
 	size_t globalTid = blockIdx.x * blockDim.x + threadIdx.x;
-	size_t numThreads = blockDim.x;
-	printf("%d\n", blockIdx.x);
+	size_t numThreads = blockDim.x * gridDim.x;
+
 
 	// init histogram for each block
 	__shared__ uint32_t partialHist[HISTO_WIDTH + 1];
 
-	partialHist[globalTid] = 0;
+	partialHist[threadIdx.x] = 0;
 
 	__syncthreads();
 
 
-
-	for (size_t j = globalTid; j < height * width; j += numThreads){
+	for (size_t j = globalTid; j < height * width; j += numThreads) {
 		uint32_t value = deviceImage[j];
 
 		if(partialHist[value] < UINT8_MAX) {
 			atomicAdd(&partialHist[value], 1);
 		}
 	}
-
 	__syncthreads();
 
-
-	// sum partials 255 *
-
-	atomicAdd(&deviceBins32[globalTid], partialHist[globalTid]);
+	// sum partials 255
+	atomicAdd(&deviceBins32[threadIdx.x], partialHist[threadIdx.x]);
 
 }
 
@@ -47,10 +43,13 @@ __global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins, siz
 
 
 void opt_2dhisto(uint32_t *deviceImage, uint32_t *deviceBins32, uint8_t *deviceBins, size_t height, size_t width) {
-	dim3 dimGrid((height * width - 1)/HISTO_WIDTH + 1, 1, 1);
-	HistKernel <<<1, HISTO_WIDTH>>> (deviceImage, deviceBins32, height, width);
+	//8 multiprocessors * 2 blocks per
+	cudaMemset(deviceBins32, 0, HISTO_HEIGHT * HISTO_WIDTH * sizeof(uint32_t));
+
+	HistKernel <<<16, HISTO_WIDTH>>> (deviceImage, deviceBins32, height, width);
 	HistKernel32to8 <<<HISTO_HEIGHT, HISTO_WIDTH>>> (deviceBins32, deviceBins, height, width);
 	cudaThreadSynchronize();
+
 }
 
 uint32_t *AllocateDeviceImage(size_t height, size_t width) {

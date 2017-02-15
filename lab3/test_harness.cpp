@@ -77,13 +77,12 @@ int main(int argc, char* argv[])
 
     uint8_t *gold_bins = (uint8_t*)malloc(HISTO_HEIGHT*HISTO_WIDTH*sizeof(uint8_t));
     uint8_t *kernel_bins = (uint8_t*)malloc(HISTO_HEIGHT*HISTO_WIDTH*sizeof(uint8_t));
-    uint32_t *bins32 = (uint32_t*)malloc(HISTO_HEIGHT*HISTO_WIDTH*sizeof(uint32_t));
 
     // A 2D array of histogram bin-ids.  One can think of each of these bins-ids as
     // being associated with a pixel in a 2D image.
     uint32_t **input = generate_histogram_bins();
 
-    TIME_IT("ref_2dhisto", 1, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
+    TIME_IT("ref_2dhisto", 1000, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
 
     // init
 
@@ -92,11 +91,10 @@ int main(int argc, char* argv[])
     uint8_t *deviceBins = AllocateDeviceBins(HISTO_HEIGHT, HISTO_WIDTH);
 
     ToDeviceImage(deviceImage, input, INPUT_HEIGHT, INPUT_WIDTH);
-    ToDeviceBins32(deviceBins32, bins32, HISTO_HEIGHT, HISTO_WIDTH); //zeros
     ToDeviceBins(deviceBins, kernel_bins, HISTO_HEIGHT, HISTO_WIDTH); // zeros
 
     TIME_IT("opt_2dhisto",
-             1,
+             1000,
              opt_2dhisto(deviceImage, deviceBins32, deviceBins, INPUT_HEIGHT, INPUT_WIDTH);)
 
     // clean
@@ -105,7 +103,6 @@ int main(int argc, char* argv[])
     FreeDeviceImage(deviceImage);
     FreeDeviceImage(deviceBins32);
     FreeDeviceBins(deviceBins);
-    free(bins32);
 
 
     // check
