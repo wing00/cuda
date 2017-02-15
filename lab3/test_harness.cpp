@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
     // being associated with a pixel in a 2D image.
     uint32_t **input = generate_histogram_bins();
 
-    TIME_IT("ref_2dhisto", 1000, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
+    TIME_IT("ref_2dhisto", 1, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
 
     // init
     uint32_t *deviceImage = AllocateDeviceImage(INPUT_HEIGHT, INPUT_WIDTH);
@@ -92,9 +92,7 @@ int main(int argc, char* argv[])
     ToDeviceImage(deviceImage, input, INPUT_HEIGHT, INPUT_WIDTH);
     ToDeviceBins(deviceBins, kernel_bins, HISTO_HEIGHT, HISTO_WIDTH); // zeros
 
-    TIME_IT("opt_2dhisto",
-             1000,
-             opt_2dhisto(deviceImage, deviceBins32, deviceBins, INPUT_HEIGHT, INPUT_WIDTH);)
+    TIME_IT("opt_2dhisto", 1000, opt_2dhisto(deviceImage, deviceBins32, deviceBins, INPUT_HEIGHT, INPUT_WIDTH);)
 
     FromDeviceBins(kernel_bins, deviceBins, HISTO_HEIGHT, HISTO_WIDTH);
 

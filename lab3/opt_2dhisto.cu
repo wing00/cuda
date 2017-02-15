@@ -18,26 +18,26 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 	__shared__ uint32_t partialHist[HISTO_WIDTH + 1];
 
 	partialHist[threadIdx.x] = 0;
-
 	__syncthreads();
 
 	for (size_t j = globalTid; j < height * width; j += numThreads) {
 		uint32_t value = deviceImage[j];
 
-		if(partialHist[value] < UINT8_MAX) {
+		if (partialHist[value] < UINT8_MAX) {
 			atomicAdd(&partialHist[value], 1);
 		}
 	}
 	__syncthreads();
 
 	// sum partials
-	atomicAdd(&deviceBins32[threadIdx.x], partialHist[threadIdx.x]);
-
+	if (deviceBins32[threadIdx.x] < UINT8_MAX) {
+		atomicAdd(&deviceBins32[threadIdx.x], partialHist[threadIdx.x]);
+	}
 }
 
-__global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins, size_t height, size_t width) {
+__global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins) {
+	// convert int32 to int8; overloaded __nv_min function
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
-	//overloaded nv min function
 	deviceBins[index] = (uint8_t) min(deviceBins32[index], UINT8_MAX);
 }
 
@@ -45,10 +45,10 @@ __global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins, siz
 void opt_2dhisto(uint32_t *deviceImage, uint32_t *deviceBins32, uint8_t *deviceBins, size_t height, size_t width) {
 	cudaMemset(deviceBins32, 0, HISTO_HEIGHT * HISTO_WIDTH * sizeof(uint32_t)); //zeros
 
-	//8 multiprocessors * 2 blocks
+	// Occupancy calculator: 8 multiprocessors * 2 blocks
 
 	HistKernel <<<16, HISTO_WIDTH>>> (deviceImage, deviceBins32, height, width);
-	HistKernel32to8 <<<HISTO_HEIGHT, HISTO_WIDTH>>> (deviceBins32, deviceBins, height, width);
+	HistKernel32to8 <<<HISTO_HEIGHT, HISTO_WIDTH>>> (deviceBins32, deviceBins);
 	cudaThreadSynchronize();
 
 }
