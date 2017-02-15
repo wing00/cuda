@@ -67,52 +67,55 @@ int main(int argc, char* argv[])
 {
     /* Case of 0 arguments: Default seed is used */
     if (argc < 2){
-	srand48(0);
+    	srand48(0);
     }
     /* Case of 1 argument: Seed is specified as first command line argument */ 
     else {
-	int seed = atoi(argv[1]);
-	srand48(seed);
+    	int seed = atoi(argv[1]);
+    	srand48(seed);
     }
 
     uint8_t *gold_bins = (uint8_t*)malloc(HISTO_HEIGHT*HISTO_WIDTH*sizeof(uint8_t));
-
-    // Use kernel_bins for your final result
     uint8_t *kernel_bins = (uint8_t*)malloc(HISTO_HEIGHT*HISTO_WIDTH*sizeof(uint8_t));
+    uint32_t *bins32 = (uint32_t*)malloc(HISTO_HEIGHT*HISTO_WIDTH*sizeof(uint32_t));
 
     // A 2D array of histogram bin-ids.  One can think of each of these bins-ids as
     // being associated with a pixel in a 2D image.
     uint32_t **input = generate_histogram_bins();
 
-    TIME_IT("ref_2dhisto", 1000, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
+    TIME_IT("ref_2dhisto", 1, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
 
     // init
 
     uint32_t *deviceImage = AllocateDeviceImage(INPUT_HEIGHT, INPUT_WIDTH);
+    uint32_t *deviceBins32 = AllocateDeviceImage(HISTO_HEIGHT, HISTO_WIDTH);
     uint8_t *deviceBins = AllocateDeviceBins(HISTO_HEIGHT, HISTO_WIDTH);
 
     ToDeviceImage(deviceImage, input, INPUT_HEIGHT, INPUT_WIDTH);
+    ToDeviceBins32(deviceBins32, bins32, HISTO_HEIGHT, HISTO_WIDTH); //zeros
     ToDeviceBins(deviceBins, kernel_bins, HISTO_HEIGHT, HISTO_WIDTH); // zeros
 
     TIME_IT("opt_2dhisto",
              1,
-             opt_2dhisto(deviceImage, deviceBins, INPUT_HEIGHT, INPUT_WIDTH);)
+             opt_2dhisto(deviceImage, deviceBins32, deviceBins, INPUT_HEIGHT, INPUT_WIDTH);)
 
     // clean
-    uint32_t *image_test = (uint32_t*)malloc(INPUT_HEIGHT * INPUT_WIDTH * sizeof(uint32_t));
-
-    FromDeviceImage(image_test, deviceImage, INPUT_HEIGHT, INPUT_WIDTH);
     FromDeviceBins(kernel_bins, deviceBins, HISTO_HEIGHT, HISTO_WIDTH);
 
     FreeDeviceImage(deviceImage);
+    FreeDeviceImage(deviceBins32);
     FreeDeviceBins(deviceBins);
+    free(bins32);
+
 
     // check
+
     int passed = 1;
-    for (int i=0; i < HISTO_HEIGHT*HISTO_WIDTH; i++){
+    for (int i=0; i < HISTO_HEIGHT * HISTO_WIDTH; i++){
         if (gold_bins[i] != kernel_bins[i]){
             passed = 0;
-            break;
+            //printf("%d %d %d\n", i, gold_bins[i], kernel_bins[i]);
+            //break;
         }
     }
     (passed) ? printf("\n    Test PASSED\n") : printf("\n    Test FAILED\n");

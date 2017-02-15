@@ -1,33 +1,60 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include <cutil.h>
 #include "util.h"
 #include "ref_2dhisto.h"
 
 
-__global__ void HistKernel(uint32_t *deviceImage, uint8_t *deviceBins, size_t height, size_t width) {
+__global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t height, size_t width) {
 
-	for(size_t i = 0; i < height; i++) {
-		for(size_t j = 0; j < width; j++) {
-			const uint32_t value = deviceImage[i * width + j];
+	size_t globalTid = blockIdx.x * blockDim.x + threadIdx.x;
+	size_t numThreads = blockIdx.x * blockDim.x;
 
-			if (deviceBins[value] < UINT8_MAX) {
-				deviceBins[value]++;
-			}
+
+	// init histogram for each block
+	__shared__ uint32_t partialHist[HISTO_WIDTH + 1];
+	for (size_t i = 0; i < HISTO_WIDTH + 1; i++) {
+		partialHist[i] = 0;
+	}
+	__syncthreads();
+
+	//
+	for (size_t j = 0; j < height * width; j++){
+		uint32_t value = deviceImage[j];
+		if(partialHist[value] < UINT8_MAX) {
+			atomicAdd(&partialHist[value], 1);
 		}
 	}
+
+	__syncthreads();
+
+	for (size_t k = 0; k < HISTO_WIDTH; k++) {
+		if(deviceBins32[k] < UINT8_MAX) {
+			atomicAdd(&deviceBins32[k], partialHist[k]);
+		}
+	}
+	__syncthreads();
+
+
 }
 
-void opt_2dhisto(uint32_t *deviceImage, uint8_t *deviceBins, size_t height, size_t width) {
+__global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins, size_t height, size_t width) {
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	deviceBins[index] = (deviceBins32[index] < UINT8_MAX) ? (uint8_t) deviceBins32[index] : (uint8_t) UINT8_MAX;
+}
 
-	dim3 dimGrid(1, 1, 1);
-	dim3 dimBlock(1, 1, 1);
 
-	HistKernel <<<dimGrid, dimBlock>>> (deviceImage, deviceBins, height, width);
+void opt_2dhisto(uint32_t *deviceImage, uint32_t *deviceBins32, uint8_t *deviceBins, size_t height, size_t width) {
+	dim3 dimGrid((height * width - 1)/HISTO_WIDTH + 1, 1, 1);
+
+	HistKernel <<<1, 1>>> (deviceImage, deviceBins32, height, width);
 	cudaThreadSynchronize();
 
+	HistKernel32to8 <<<HISTO_HEIGHT, HISTO_WIDTH>>> (deviceBins32, deviceBins, height, width);
+	cudaThreadSynchronize();
 }
 
 uint32_t *AllocateDeviceImage(size_t height, size_t width) {
@@ -62,6 +89,13 @@ void ToDeviceImage(uint32_t *deviceImage, uint32_t *input[],  size_t height, siz
 		cudaMemcpy(deviceImage + i * width, input[i], size, cudaMemcpyHostToDevice);
 	}
 }
+
+void ToDeviceBins32(uint32_t *deviceBins, uint32_t *input,  size_t height, size_t width) {
+	int size = width * sizeof(uint32_t);
+	cudaMemcpy(deviceBins, input, size, cudaMemcpyHostToDevice);
+
+}
+
 
 void ToDeviceBins(uint8_t *deviceBins, uint8_t *hostBins, size_t height, size_t width) {
 	int size = height * width * sizeof(uint8_t);
