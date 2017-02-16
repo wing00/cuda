@@ -4,7 +4,6 @@
 #include <stdio.h>
 
 #include <cutil.h>
-#include <cuda_profiler_api.h>
 #include "util.h"
 #include "ref_2dhisto.h"
 
@@ -29,7 +28,7 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 
 
 #pragma unroll
-	for (size_t j = globalTid; j < height * width; j += numThreads * 4) {
+	for (size_t j = globalTid; j < height * width; j += numThreads * 12) {
 		if (partialHist[deviceImage[j]] < UINT8_MAX) {
 			atomicAdd(&partialHist[deviceImage[j]], 1);
 		}
@@ -45,6 +44,31 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 		if (partialHist[deviceImage[j + numThreads * 3]] < UINT8_MAX) {
 				atomicAdd(&partialHist[deviceImage[j + numThreads * 3]], 1);
 		}
+		if (partialHist[deviceImage[j + numThreads * 4]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 4]], 1);
+			}
+		if (partialHist[deviceImage[j + numThreads * 5]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 5]], 1);
+			}
+		if (partialHist[deviceImage[j + numThreads * 6]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 6]], 1);
+			}
+		if (partialHist[deviceImage[j + numThreads * 7]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 7]], 1);
+			}
+		if (partialHist[deviceImage[j + numThreads * 8]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 8]], 1);
+			}
+		if (partialHist[deviceImage[j + numThreads * 9]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 9]], 1);
+			}
+		if (partialHist[deviceImage[j + numThreads * 10]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 10]], 1);
+			}
+		if (partialHist[deviceImage[j + numThreads * 11]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 11]], 1);
+			}
+
 	}
 	__syncthreads();
 
