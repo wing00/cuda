@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include <cutil.h>
+#include <cuda_profiler_api.h>
 #include "util.h"
 #include "ref_2dhisto.h"
 
@@ -13,18 +14,36 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 	size_t globalTid = blockIdx.x * blockDim.x + threadIdx.x;
 	size_t numThreads = blockDim.x * gridDim.x;
 
-
 	// init histogram for each block
 	__shared__ uint32_t partialHist[HISTO_WIDTH + 1];
 
 	partialHist[threadIdx.x] = 0;
+//		partialHist[threadIdx.x + 128] = 0;
+//	partialHist[threadIdx.x + 256] = 0;
+//	partialHist[threadIdx.x + 384] = 0;
+//	partialHist[threadIdx.x + 512] = 0;
+//	partialHist[threadIdx.x + 640] = 0;
+//	partialHist[threadIdx.x + 768] = 0;
+//	partialHist[threadIdx.x + 896] = 0;
 	__syncthreads();
 
-	for (size_t j = globalTid; j < height * width; j += numThreads) {
-		uint32_t value = deviceImage[j];
 
-		if (partialHist[value] < UINT8_MAX) {
-			atomicAdd(&partialHist[value], 1);
+#pragma unroll
+	for (size_t j = globalTid; j < height * width; j += numThreads * 4) {
+		if (partialHist[deviceImage[j]] < UINT8_MAX) {
+			atomicAdd(&partialHist[deviceImage[j]], 1);
+		}
+
+		if (partialHist[deviceImage[j + numThreads]] < UINT8_MAX) {
+			atomicAdd(&partialHist[deviceImage[j + numThreads]], 1);
+		}
+
+		if (partialHist[deviceImage[j + numThreads * 2]] < UINT8_MAX) {
+			atomicAdd(&partialHist[deviceImage[j + numThreads * 2]], 1);
+		}
+
+		if (partialHist[deviceImage[j + numThreads * 3]] < UINT8_MAX) {
+				atomicAdd(&partialHist[deviceImage[j + numThreads * 3]], 1);
 		}
 	}
 	__syncthreads();
@@ -33,6 +52,14 @@ __global__ void HistKernel(uint32_t *deviceImage, uint32_t *deviceBins32, size_t
 	if (deviceBins32[threadIdx.x] < UINT8_MAX) {
 		atomicAdd(&deviceBins32[threadIdx.x], partialHist[threadIdx.x]);
 	}
+//		atomicAdd(&deviceBins32[threadIdx.x + 128], partialHist[threadIdx.x + 128]);
+//		atomicAdd(&deviceBins32[threadIdx.x + 256], partialHist[threadIdx.x + 256]);
+//		atomicAdd(&deviceBins32[threadIdx.x + 384], partialHist[threadIdx.x + 384]);
+//		atomicAdd(&deviceBins32[threadIdx.x + 512], partialHist[threadIdx.x + 512]);
+//		atomicAdd(&deviceBins32[threadIdx.x + 640], partialHist[threadIdx.x + 640]);
+//		atomicAdd(&deviceBins32[threadIdx.x + 768], partialHist[threadIdx.x + 768]);
+//		atomicAdd(&deviceBins32[threadIdx.x + 896], partialHist[threadIdx.x + 896]);
+
 }
 
 __global__ void HistKernel32to8(uint32_t *deviceBins32, uint8_t *deviceBins) {
@@ -47,7 +74,7 @@ void opt_2dhisto(uint32_t *deviceImage, uint32_t *deviceBins32, uint8_t *deviceB
 
 	// Occupancy calculator: 8 multiprocessors * 2 blocks
 
-	HistKernel <<<16, HISTO_WIDTH>>> (deviceImage, deviceBins32, height, width);
+	HistKernel <<<16, HISTO_WIDTH >>> (deviceImage, deviceBins32, height, width);
 	HistKernel32to8 <<<HISTO_HEIGHT, HISTO_WIDTH>>> (deviceBins32, deviceBins);
 	cudaThreadSynchronize();
 
@@ -100,3 +127,4 @@ void FromDeviceBins(uint8_t *hostBins, uint8_t *deviceBins, size_t height, size_
 	int size = height * width * sizeof(uint8_t);
     cudaMemcpy(hostBins, deviceBins, size, cudaMemcpyDeviceToHost);
 }
+
