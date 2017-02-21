@@ -45,7 +45,6 @@ static uint32_t next_bin(uint32_t pix)
 // The key point here is that the pixels (and thus the bin-ids) are *NOT*
 // randomly distributed ... a given pixel tends to be similar to the
 // pixels near it.
-
 static uint32_t **generate_histogram_bins()
 {
     uint32_t **input = (uint32_t**)alloc_2d(INPUT_HEIGHT, INPUT_WIDTH, sizeof(uint32_t));
@@ -67,54 +66,61 @@ int main(int argc, char* argv[])
 {
     /* Case of 0 arguments: Default seed is used */
     if (argc < 2){
-    	srand48(0);
+	srand48(0);
     }
     /* Case of 1 argument: Seed is specified as first command line argument */ 
     else {
-    	int seed = atoi(argv[1]);
-    	srand48(seed);
+	int seed = atoi(argv[1]);
+	srand48(seed);
     }
 
     uint8_t *gold_bins = (uint8_t*)malloc(HISTO_HEIGHT*HISTO_WIDTH*sizeof(uint8_t));
+
+    // Use kernel_bins for your final result
     uint8_t *kernel_bins = (uint8_t*)malloc(HISTO_HEIGHT*HISTO_WIDTH*sizeof(uint8_t));
 
     // A 2D array of histogram bin-ids.  One can think of each of these bins-ids as
     // being associated with a pixel in a 2D image.
     uint32_t **input = generate_histogram_bins();
 
-    TIME_IT("ref_2dhisto", 1, ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
+    TIME_IT("ref_2dhisto",
+            1000,
+            ref_2dhisto(input, INPUT_HEIGHT, INPUT_WIDTH, gold_bins);)
 
-    // init
-    uint32_t *deviceImage = AllocateDeviceImage(INPUT_HEIGHT, INPUT_WIDTH);
-    uint32_t *deviceBins32 = AllocateDeviceImage(HISTO_HEIGHT, 16 * HISTO_WIDTH);
-    uint8_t *deviceBins = AllocateDeviceBins(HISTO_HEIGHT, HISTO_WIDTH);
+    /* Include your setup code below (temp variables, function calls, etc.) */
+    //printf("%d\n", INPUT_WIDTH);
+    uint32_t* d_input = (uint32_t*)AllocateDevice(INPUT_HEIGHT * ((INPUT_WIDTH + 128) & 0xFFFFFF80) * sizeof(uint32_t));
+    uint8_t* d_bins = (uint8_t*)AllocateDevice(HISTO_HEIGHT * HISTO_WIDTH * sizeof(uint8_t));
+    uint32_t* g_bins = (uint32_t*)AllocateDevice(HISTO_HEIGHT * HISTO_WIDTH * sizeof(uint32_t));
 
-    ToDeviceImage(deviceImage, input, INPUT_HEIGHT, INPUT_WIDTH);
-    ToDeviceBins(deviceBins, kernel_bins, HISTO_HEIGHT, HISTO_WIDTH); // zeros
+    CopyToDevice(d_input, &(input[0][0]), INPUT_HEIGHT * ((INPUT_WIDTH + 128) & 0xFFFFFF80) * sizeof(uint32_t));
 
-    TIME_IT("opt_2dhisto", 1000, opt_2dhisto(deviceImage, deviceBins32, deviceBins, INPUT_HEIGHT, INPUT_WIDTH);)
+    /* End of setup code */
 
+    /* This is the call you will use to time your parallel implementation */
+    TIME_IT("opt_2dhisto",
+            1000,
+            opt_2dhisto( d_input, INPUT_HEIGHT, INPUT_WIDTH, d_bins, g_bins);)
 
-    FromDeviceBins(kernel_bins, deviceBins, HISTO_HEIGHT, HISTO_WIDTH);
+    /* Include your teardown code below (temporary variables, function calls, etc.) */
+    CopyFromDevice(kernel_bins, d_bins, HISTO_HEIGHT * HISTO_WIDTH * sizeof(uint8_t));
 
-    // clean
-    FreeDeviceImage(deviceImage);
-    FreeDeviceImage(deviceBins32);
-    FreeDeviceBins(deviceBins);
+    FreeDevice(d_bins);
+    FreeDevice(g_bins);
+    FreeDevice(d_input);
 
-    // check
-
-    int passed = 1;
-    for (int i=0; i < HISTO_HEIGHT * HISTO_WIDTH; i++){
+    /* End of teardown code */
+    
+    int passed=1;
+    for (int i=0; i < HISTO_HEIGHT*HISTO_WIDTH; i++){
         if (gold_bins[i] != kernel_bins[i]){
             passed = 0;
-            printf("%d %d %d\n", i, gold_bins[i], kernel_bins[i]);
-            //break;
+	    printf("\n%d  %d  %d\n", i, kernel_bins[i], gold_bins[i]);
+            break;
         }
     }
     (passed) ? printf("\n    Test PASSED\n") : printf("\n    Test FAILED\n");
 
     free(gold_bins);
     free(kernel_bins);
-
 }
