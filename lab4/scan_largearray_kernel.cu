@@ -17,6 +17,14 @@
 
 
 // Lab4: Kernel Functions
+__global__ void prescanKernel(float *outArray, float *inArray, int numElements) {
+	outArray[0] = 0;
+	double total_sum = 0;
+	for( unsigned int i = 1; i < numElements; ++i) {
+	      total_sum += inArray[i-1];
+	      outArray[i] = inArray[i-1] + outArray[i-1];
+	  }
+}
 
 
 // **===-------- Lab4: Modify the body of this function -----------===**
@@ -25,6 +33,7 @@
 void prescanArray(float *outArray, float *inArray, int numElements)
 {
 
+	prescanKernel<<<1 , 1>>> (outArray, inArray, numElements);
 
 
 }
