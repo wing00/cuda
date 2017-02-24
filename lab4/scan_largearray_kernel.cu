@@ -8,7 +8,7 @@
 #define NUM_BANKS 32
 #define LOG_NUM_BANKS 5
 // Lab4: You can use any other block size you wish.
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 8
 
 // Lab4: Host Helper Functions (allocate your own data structure...)
 
@@ -32,14 +32,12 @@ bool isPowerOf2(int input) {
 
 
 // Lab4: Kernel Functions
-__global__ void upKernel(float *outArray, float *inArray, int numElements) {
-
-
+__global__ void singleKernel(float *outArray, float *inArray, int numElements) {
 	__shared__ float sharedArray[BLOCK_SIZE];
 	sharedArray[threadIdx.x] = inArray[threadIdx.x];
+	__syncthreads();
 
-
-	for(size_t i = 1; i < (numElements>>1); i <<= 1) {
+	for(size_t i = 1; i < (numElements >> 1); i <<= 1) {
 		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
 
 		if(index < numElements) {
@@ -47,14 +45,70 @@ __global__ void upKernel(float *outArray, float *inArray, int numElements) {
 		}
 		__syncthreads();
 	}
-	outArray[threadIdx.x] = sharedArray[threadIdx.x];
+	if(threadIdx.x == 0) {sharedArray[numElements -1] = 0;}
+	__syncthreads();
 
+
+	for(size_t i = numElements >> 1; i > 0; i >>= 1) {
+		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+		//printf("%d %lu %lu %lu %0.2f %0.2f\n",threadIdx.x, i,   index, index - i, sharedArray[index], sharedArray[index - 1]);
+
+		if(index < numElements) {
+			float temp = sharedArray[index - i];
+			sharedArray[index - i] = sharedArray[index];
+			sharedArray[index] += temp;
+		}
+		__syncthreads();
+	}
+
+	outArray[threadIdx.x] = sharedArray[threadIdx.x];
+}
+
+__global__ void oddSingleKernel(float *outArray, float *inArray, int numElements, int difference) {
+	__shared__ float sharedArray[BLOCK_SIZE];
+	sharedArray[threadIdx.x] = inArray[threadIdx.x];
+	if(threadIdx.x >= BLOCK_SIZE - difference) {
+		sharedArray[threadIdx.x] = 0;
+	}
+	__syncthreads();
+
+
+	for(size_t i = 1; i < (numElements >> 1); i <<= 1) {
+			size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+
+			if(index < numElements) {
+				sharedArray[index] += sharedArray[index - i];
+			}
+			__syncthreads();
+		}
+
+
+		outArray[threadIdx.x] = sharedArray[threadIdx.x];
+
+		printf("%d %0.2f\n", threadIdx.x, sharedArray[threadIdx.x]);
+}
+
+__global__ void upKernel(float *outArray, float *inArray, int numElements) {
+	__shared__ float sharedArray[BLOCK_SIZE];
+	sharedArray[threadIdx.x] = inArray[threadIdx.x];
+	__syncthreads();
+
+	for(size_t i = 1; i < (numElements >> 1); i <<= 1) {
+		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+
+		if(index < numElements) {
+			sharedArray[index] += sharedArray[index - i];
+		}
+		__syncthreads();
+	}
+	if(threadIdx.x == 0) {sharedArray[numElements -1] = 0;}
+	__syncthreads();
+	outArray[threadIdx.x] = sharedArray[threadIdx.x];
 }
 
 __global__ void downKernel(float *outArray, int numElements) {
 
 	__shared__ float sharedArray[BLOCK_SIZE];
-
 	sharedArray[threadIdx.x] = outArray[threadIdx.x];
 
 	if(threadIdx.x == 0) {sharedArray[numElements -1] = 0;}
@@ -76,19 +130,35 @@ __global__ void downKernel(float *outArray, int numElements) {
 }
 
 
+__global__ void oddDownKernel(float *outArray, int numElements, int difference) {
+	__shared__ float sharedArray[BLOCK_SIZE];
+	sharedArray[threadIdx.x] = outArray[threadIdx.x];
+	if(threadIdx.x >= BLOCK_SIZE - difference) {
+		sharedArray[threadIdx.x] = 0;
+	}
+}
+
 // **===-------- Lab4: Modify the body of this function -----------===**
 // You may need to make multiple kernel calls, make your own kernel
 // function in this file, and then call them from here.
 void prescanArray(float *outArray, float *inArray, int numElements)
 {
+	if(isPowerOf2(numElements)) {
+		if(numElements <= BLOCK_SIZE) {
+			singleKernel<<<1, numElements>>> (outArray, inArray, numElements);
+			//downKernel<<<1, numElements>>>(outArray, numElements);
+		} else {
+			//int numBlocks = numElements / BLOCK_SIZE;
 
-	if(numElements <= BLOCK_SIZE && isPowerOf2(numElements)) {
-		upKernel<<<1, numElements>>> (outArray, inArray, numElements);
-		downKernel<<<1, numElements>>>(outArray, numElements);
+			//upKernel<<<1, numElements>>> (outArray, inArray, numElements);
+		}
 	}
 	else {
-		upKernel<<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
-		downKernel<<<1, BLOCK_SIZE>>>(outArray, numElements);
+		int difference = nearestPowerOf2(numElements) - numElements;
+		printf("%d\n", difference);
+		oddSingleKernel<<<1, BLOCK_SIZE>>> (outArray, inArray, numElements, difference);
+		//oddDownKernel<<<1, BLOCK_SIZE>>>(outArray, numElements, difference);
+
 	}
 	cudaThreadSynchronize();
 
