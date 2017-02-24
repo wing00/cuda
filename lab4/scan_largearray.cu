@@ -44,9 +44,10 @@
 #include <cutil.h>
 
 // includes, kernels
-#include <scan_largearray_kernel.cu>  
+#include <scan_largearray_kernel.cu>
 
-#define DEFAULT_NUM_ELEMENTS 16000000 
+//16777216
+#define DEFAULT_NUM_ELEMENTS 1024
 #define MAX_RAND 3
 
 
@@ -169,9 +170,12 @@ runTest( int argc, char** argv)
 
       
     // compute reference solution
-    float* reference = (float*) malloc( mem_size);  
+    float* reference = (float*) malloc( mem_size);
+    float* original = (float*) malloc( mem_size);
+    memcpy(original, h_data, mem_size);
+
 	cutStartTimer(timer);
-    computeGold( reference, h_data, num_elements);
+    computeGold(reference, h_data, num_elements);
 	cutStopTimer(timer);
     printf("\n\n**===-------------------------------------------------===**\n");
     printf("Processing %d elements...\n", num_elements);
@@ -196,7 +200,7 @@ runTest( int argc, char** argv)
 
     // Run just once to remove startup overhead for more accurate performance 
     // measurement
-    prescanArray(d_odata, d_idata, 16);
+    //prescanArray(d_odata, d_idata, 16);
 
     // Run the prescan
     CUT_SAFE_CALL(cutCreateTimer(&timer));
@@ -217,6 +221,7 @@ runTest( int argc, char** argv)
     // **===-----------------------------------------------------------===**
 
 
+
     // copy result from device to host
     CUDA_SAFE_CALL(cudaMemcpy( h_data, d_odata, sizeof(float) * num_elements, 
                                cudaMemcpyDeviceToHost));
@@ -230,6 +235,10 @@ runTest( int argc, char** argv)
         WriteFile(h_data, argv[1], num_elements);
     }
 
+    for(size_t i = 0; i < num_elements; i++) {
+    		if(reference[i] != h_data[i]) {printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);}
+           //	printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);
+   }
 
     // Check if the result is equivalent to the expected soluion
     unsigned int result_regtest = cutComparef( reference, h_data, num_elements);
