@@ -47,7 +47,7 @@
 #include <scan_largearray_kernel.cu>
 
 //16777216
-#define DEFAULT_NUM_ELEMENTS 512
+#define DEFAULT_NUM_ELEMENTS 1022
 #define MAX_RAND 3
 
 
@@ -237,7 +237,7 @@ runTest( int argc, char** argv)
 
     for(size_t i = 0; i < num_elements; i++) {
     	//	if(reference[i] != h_data[i]) {printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);}
-           	printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);
+        //   	printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);
    }
 
     // Check if the result is equivalent to the expected soluion

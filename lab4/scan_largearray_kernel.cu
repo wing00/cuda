@@ -34,43 +34,7 @@ bool isPowerOf2(int input) {
 // Lab4: Kernel Functions
 __global__ void singleKernel(float *outArray, float *inArray, int numElements) {
 	__shared__ float sharedArray[BLOCK_SIZE];
-	sharedArray[threadIdx.x] = inArray[threadIdx.x];
-	__syncthreads();
-
-	for(size_t i = 1; i < (numElements >> 1); i <<= 1) {
-		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
-
-		if(index < numElements) {
-			sharedArray[index] += sharedArray[index - i];
-		}
-		__syncthreads();
-	}
-	if(threadIdx.x == 0) {sharedArray[numElements -1] = 0;}
-	__syncthreads();
-
-	for(size_t i = numElements >> 1; i > 0; i >>= 1) {
-		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
-		//printf("%d %lu %lu %lu %0.2f %0.2f\n",threadIdx.x, i,   index, index - i, sharedArray[index], sharedArray[index - 1]);
-
-		if(index < numElements) {
-			float temp = sharedArray[index - i];
-			sharedArray[index - i] = sharedArray[index];
-			sharedArray[index] += temp;
-		}
-		__syncthreads();
-	}
-	outArray[threadIdx.x] = sharedArray[threadIdx.x];
-}
-
-
-__global__ void oddSingleKernel(float *outArray, float *inArray, int numElements, int difference) {
-	__shared__ float sharedArray[BLOCK_SIZE];
-
-	sharedArray[threadIdx.x] = inArray[threadIdx.x];
-	if(threadIdx.x >= BLOCK_SIZE - difference) {
-		sharedArray[threadIdx.x] = 0;
-	}
-
+	sharedArray[threadIdx.x] = (threadIdx.x < numElements) ? inArray[threadIdx.x] : 0;
 	__syncthreads();
 
 	for(size_t i = 1; i < (BLOCK_SIZE >> 1); i <<= 1) {
@@ -82,17 +46,17 @@ __global__ void oddSingleKernel(float *outArray, float *inArray, int numElements
 		__syncthreads();
 	}
 
-	if(threadIdx.x == 0) {sharedArray[BLOCK_SIZE -1] = 0;}
+	if(threadIdx.x == 0) {sharedArray[BLOCK_SIZE - 1] = 0;}
 	__syncthreads();
-
 
 	for(size_t i = BLOCK_SIZE >> 1; i > 0; i >>= 1) {
 		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+		//printf("%d %lu %lu %lu %0.2f %0.2f\n",threadIdx.x, i,   index, index - i, sharedArray[index], sharedArray[index - 1]);
 
 		if(index < BLOCK_SIZE) {
-			float temp = sharedArray[index];
-			sharedArray[index] += sharedArray[index - i];
-			sharedArray[index - i] = temp;
+			float temp = sharedArray[index - i];
+			sharedArray[index - i] = sharedArray[index];
+			sharedArray[index] += temp;
 		}
 		__syncthreads();
 	}
@@ -149,20 +113,11 @@ __global__ void downKernel(float *outArray, int numElements) {
 // function in this file, and then call them from here.
 void prescanArray(float *outArray, float *inArray, int numElements)
 {
-	if(isPowerOf2(numElements)) {
-		if(numElements <= BLOCK_SIZE) {
-			singleKernel<<<1, numElements>>> (outArray, inArray, numElements);
-		} else {
-			//int numBlocks = numElements / BLOCK_SIZE;
 
-			//upKernel<<<1, numElements>>> (outArray, inArray, numElements);
-		}
+	if(numElements <= BLOCK_SIZE) {
+		singleKernel <<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
 	}
-	else {
-		int difference = nearestPowerOf2(numElements) - numElements;
-		oddSingleKernel<<<1, BLOCK_SIZE>>> (outArray, inArray, numElements, difference);
 
-	}
 	cudaThreadSynchronize();
 
 
