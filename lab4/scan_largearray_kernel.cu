@@ -12,15 +12,8 @@
 
 // Lab4: Host Helper Functions (allocate your own data structure...)
 
-int nearestPowerOf2(int input) {
-	float count = 0;
-	input -= 1;
-	if (input == 0) {return 0;}
-	while (input > 0) {
-		input >>= 1;
-		count++;
-	}
-	return exp2(count);
+int nextPowerOf2(float input) {
+	return exp2(ceil(log2(input - 1)));
 }
 
 bool isPowerOf2(int input) {
@@ -78,13 +71,11 @@ __global__ void upKernel(float *outArray, float *inArray, int numElements) {
 		}
 		__syncthreads();
 	}
-	if(threadIdx.x == 0) {sharedArray[numElements -1] = 0;}
 	__syncthreads();
 	outArray[threadIdx.x] = sharedArray[threadIdx.x];
 }
 
 __global__ void downKernel(float *outArray, int numElements) {
-
 	__shared__ float sharedArray[BLOCK_SIZE];
 	sharedArray[threadIdx.x] = outArray[threadIdx.x];
 
@@ -113,13 +104,9 @@ __global__ void downKernel(float *outArray, int numElements) {
 // function in this file, and then call them from here.
 void prescanArray(float *outArray, float *inArray, int numElements)
 {
-
 	if(numElements <= BLOCK_SIZE) {
 		singleKernel <<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
 	}
-
-	cudaThreadSynchronize();
-
 
 }
 // **===-----------------------------------------------------------===**
