@@ -47,7 +47,7 @@
 #include <scan_largearray_kernel.cu>
 
 //16777216
-#define DEFAULT_NUM_ELEMENTS 16777216
+#define DEFAULT_NUM_ELEMENTS 1024*1024*16
 #define MAX_RAND 3
 
 
@@ -186,34 +186,28 @@ runTest( int argc, char** argv)
     // **===-------- Lab4: Allocate data structure here -----------===**
     // allocate device memory input and output arrays
 
-    unsigned int blockSums_size = sizeof( float) * (num_elements / BLOCK_SIZE + 1);
 
     float* d_idata = NULL;
     float* d_odata = NULL;
-    float* blockSums = NULL;
-    float* blockSumsSums = NULL;
 
 
     CUDA_SAFE_CALL( cudaMalloc( (void**) &d_idata, mem_size));
     CUDA_SAFE_CALL( cudaMalloc( (void**) &d_odata, mem_size));
-    CUDA_SAFE_CALL( cudaMalloc( (void**) &blockSums, blockSums_size) );
-    CUDA_SAFE_CALL( cudaMalloc( (void**) &blockSumsSums, blockSums_size) );
-
 
     // copy host memory to device input array
     CUDA_SAFE_CALL( cudaMemcpy( d_idata, h_data, mem_size, cudaMemcpyHostToDevice) );
     // initialize all the other device arrays to be safe
     CUDA_SAFE_CALL( cudaMemcpy( d_odata, h_data, mem_size, cudaMemcpyHostToDevice) );
-    CUDA_SAFE_CALL( cudaMemset( blockSums, 0, blockSums_size) );
-    CUDA_SAFE_CALL( cudaMemset( blockSumsSums, 0, blockSums_size) );
 
+    float* blockSums = setBlockSums((num_elements + BLOCK_SIZE-1) / BLOCK_SIZE);
+    float* blockSumsSums = setBlockSums(((num_elements + BLOCK_SIZE-1) / BLOCK_SIZE - 1) / BLOCK_SIZE);
 
 
     // **===-----------------------------------------------------------===**
 
     // Run just once to remove startup overhead for more accurate performance 
     // measurement
-    //prescanArray(d_odata, d_idata, 16);
+    prescanArray(d_odata, d_idata, blockSums, blockSumsSums, 16);
 
     // Run the prescan
     CUT_SAFE_CALL(cutCreateTimer(&timer));
@@ -250,7 +244,7 @@ runTest( int argc, char** argv)
 
     for(size_t i = 0; i < num_elements; i++) {
     	//	if(reference[i] != h_data[i]) {printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);}
-         //  	printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);
+        //   printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);
    }
 
     // Check if the result is equivalent to the expected soluion
@@ -263,6 +257,8 @@ runTest( int argc, char** argv)
     free( reference);
     cudaFree( d_odata);
     cudaFree( d_idata);
+
+    free( original);
     cudaFree( blockSums);
     cudaFree( blockSumsSums);
 
