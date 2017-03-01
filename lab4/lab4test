@@ -1,12 +1,2 @@
 #!/bin/bash
 ./../../bin/linux/release/lab4
-#for i in {1..100}
-#do
-#   echo $i > ./test/size.txt
-#   ./../../bin/linux/release/lab4 ./test/size.txt ./test/dump.txt | grep -q PASSED && echo "$i :FAIL"
-#   if (( $i % 100 == 0))
-#   then
-#	echo $i
-#   fi
-#done
-

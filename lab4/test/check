@@ -1,0 +1,14 @@
+#!/bin/bash
+./../../../bin/linux/release/lab4
+for ((i=1; i < 16777216; i*=2)); do
+   echo $i > ./size.txt
+   ./../../../bin/linux/release/lab4 ./size.txt ./dump.txt | grep -q FAIL && echo "$i :FAIL"
+   echo $((i + i/2)) > ./size.txt
+   ./../../../bin/linux/release/lab4 ./size.txt ./dump.txt | grep -q FAIL && echo "$i :FAIL"
+   echo $((i + i/3)) > ./size.txt
+   ./../../../bin/linux/release/lab4 ./size.txt ./dump.txt | grep -q FAIL && echo "$i :FAIL"
+echo $i
+echo $((i + i/2))
+echo $((i + i/3))
+done
+
