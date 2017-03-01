@@ -27,10 +27,11 @@ bool isPowerOf2(int input) {
 // Lab4: Kernel Functions
 __global__ void singleKernel(float *outArray, float *inArray, int numElements) {
 	__shared__ float sharedArray[BLOCK_SIZE];
+
 	sharedArray[threadIdx.x] = (threadIdx.x < numElements) ? inArray[threadIdx.x] : 0;
 	__syncthreads();
 
-	for(size_t i = 1; i < (BLOCK_SIZE >> 1); i <<= 1) {
+	for(size_t i = 1; i < BLOCK_SIZE; i <<= 1) {
 		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
 
 		if(index < BLOCK_SIZE) {
@@ -97,23 +98,45 @@ __global__ void addKernel(float *outArray, float *blockSums) {
 	outArray[globalThread] += blockSums[blockIdx.x];
 }
 
-
+__global__ void test(float *blockSums, int numElements) {
+	size_t globalThread = blockIdx.x * blockDim.x + threadIdx.x;
+	if(globalThread < numElements) {
+		printf("%lu %f\n", globalThread, blockSums[globalThread]);
+	}
+}
 
 // **===-------- Lab4: Modify the body of this function -----------===**
 // You may need to make multiple kernel calls, make your own kernel
 // function in this file, and then call them from here.
-void prescanArray(float *outArray, float *inArray, float *blockSums, int numElements)
+void prescanArray(float *outArray, float *inArray, float *blockSums, float *blockSumsSums, int numElements)
 {
-	if(numElements <= BLOCK_SIZE) {
-		//singleKernel <<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
-		//upKernel<<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
-		//downKernel<<<1, BLOCK_SIZE>>> (outArray, numElements);
-	} else if (numElements < BLOCK_SIZE*BLOCK_SIZE) {
-		upKernel<<<numElements / BLOCK_SIZE + 1, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
-		singleKernel<<<1, BLOCK_SIZE>>> (blockSums, blockSums, numElements / BLOCK_SIZE + 1);
-		addKernel<<<numElements / BLOCK_SIZE + 1, BLOCK_SIZE>>> (outArray, blockSums);
-	}
 
+	if(numElements <= BLOCK_SIZE) {
+		singleKernel <<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
+	} else if (numElements <= BLOCK_SIZE * BLOCK_SIZE) {
+		size_t numBlocks = (numElements - 1) / BLOCK_SIZE + 1;
+
+		upKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
+		singleKernel<<<1, BLOCK_SIZE>>> (inArray, blockSums, numBlocks);
+		addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray);
+
+	} else {
+
+		size_t numBlocks = (numElements - 1)/ BLOCK_SIZE + 1;
+		size_t numBlockSums = (numBlocks - 1) / BLOCK_SIZE + 1;
+
+		upKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
+		upKernel<<<numBlockSums, BLOCK_SIZE>>> (inArray, blockSums, blockSumsSums, numBlocks);
+
+		singleKernel<<<1, BLOCK_SIZE>>> (blockSums, blockSumsSums, numBlocks);
+
+		addKernel<<<numBlockSums, BLOCK_SIZE>>> (inArray, blockSums);
+		addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray);
+
+		//		addKernel<<<numElements / BLOCK_SIZE + 1, BLOCK_SIZE>>> (outArray, blockSums);
+
+
+	}
 
 
 }

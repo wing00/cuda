@@ -47,7 +47,7 @@
 #include <scan_largearray_kernel.cu>
 
 //16777216
-#define DEFAULT_NUM_ELEMENTS 1024*1024-2
+#define DEFAULT_NUM_ELEMENTS 16777216
 #define MAX_RAND 3
 
 
@@ -191,19 +191,22 @@ runTest( int argc, char** argv)
     float* d_idata = NULL;
     float* d_odata = NULL;
     float* blockSums = NULL;
-    float* zeros = (float*) malloc(blockSums_size );
-    memset(zeros, 0, blockSums_size);
+    float* blockSumsSums = NULL;
+
 
     CUDA_SAFE_CALL( cudaMalloc( (void**) &d_idata, mem_size));
     CUDA_SAFE_CALL( cudaMalloc( (void**) &d_odata, mem_size));
     CUDA_SAFE_CALL( cudaMalloc( (void**) &blockSums, blockSums_size) );
+    CUDA_SAFE_CALL( cudaMalloc( (void**) &blockSumsSums, blockSums_size) );
 
 
     // copy host memory to device input array
     CUDA_SAFE_CALL( cudaMemcpy( d_idata, h_data, mem_size, cudaMemcpyHostToDevice) );
     // initialize all the other device arrays to be safe
     CUDA_SAFE_CALL( cudaMemcpy( d_odata, h_data, mem_size, cudaMemcpyHostToDevice) );
-    CUDA_SAFE_CALL( cudaMemcpy( blockSums, zeros, blockSums_size, cudaMemcpyHostToDevice) );
+    CUDA_SAFE_CALL( cudaMemset( blockSums, 0, blockSums_size) );
+    CUDA_SAFE_CALL( cudaMemset( blockSumsSums, 0, blockSums_size) );
+
 
 
     // **===-----------------------------------------------------------===**
@@ -217,7 +220,7 @@ runTest( int argc, char** argv)
     cutStartTimer(timer);
     
     // **===-------- Lab4: Modify the body of this function -----------===**
-    prescanArray(d_odata, d_idata, blockSums, num_elements);
+    prescanArray(d_odata, d_idata, blockSums, blockSumsSums, num_elements);
     // **===-----------------------------------------------------------===**
     CUDA_SAFE_CALL( cudaThreadSynchronize() );
 
@@ -258,10 +261,10 @@ runTest( int argc, char** argv)
     cutDeleteTimer(timer);
     free( h_data);
     free( reference);
-    free( zeros);
     cudaFree( d_odata);
     cudaFree( d_idata);
     cudaFree( blockSums);
+    cudaFree( blockSumsSums);
 
 }
 
