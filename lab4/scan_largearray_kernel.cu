@@ -22,9 +22,9 @@ bool isPowerOf2(int input) {
 
 float *setBlockSums(int size) {
 	float* blockSums = NULL;
-	unsigned int blockSums_size = sizeof( float) * size;
-	CUDA_SAFE_CALL( cudaMalloc( (void**) &blockSums, blockSums_size) );
-	CUDA_SAFE_CALL( cudaMemset( blockSums, 0, blockSums_size) );
+
+	CUDA_SAFE_CALL( cudaMalloc( (void**) &blockSums,  sizeof( float) * size) );
+	CUDA_SAFE_CALL( cudaMemset( blockSums, 0, sizeof( float) * size) );
 
 	return blockSums;
 }
@@ -120,20 +120,20 @@ void prescanArray(float *outArray, float *inArray, float *blockSums, float *bloc
 		size_t numBlocks = (numElements - 1) / BLOCK_SIZE + 1;
 
 		upKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
-		singleKernel<<<1, BLOCK_SIZE>>> (inArray, blockSums, numBlocks);
-		addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray);
+		singleKernel<<<1, BLOCK_SIZE>>> (blockSums, blockSums, numBlocks);
+		addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, blockSums);
 
 	} else {
 		size_t numBlocks = (numElements - 1)/ BLOCK_SIZE + 1;
 		size_t numBlockSums = (numBlocks - 1) / BLOCK_SIZE + 1;
 
 		upKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
-		upKernel<<<numBlockSums, BLOCK_SIZE>>> (inArray, blockSums, blockSumsSums, numBlocks);
+		upKernel<<<numBlockSums, BLOCK_SIZE>>> (blockSums, blockSums, blockSumsSums, numBlocks);
 
-		singleKernel<<<1, BLOCK_SIZE>>> (blockSums, blockSumsSums, numBlocks);
+		singleKernel<<<1, BLOCK_SIZE>>> (blockSumsSums, blockSumsSums, numBlocks);
 
-		addKernel<<<numBlockSums, BLOCK_SIZE>>> (inArray, blockSums);
-		addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray);
+		addKernel<<<numBlockSums, BLOCK_SIZE>>> (blockSums, blockSumsSums);
+		addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, blockSums);
 	}
 
 }
