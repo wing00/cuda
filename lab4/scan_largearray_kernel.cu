@@ -9,7 +9,7 @@
 #define LOG_NUM_BANKS 5
 // Lab4: You can use any other block size you wish.
 #define BLOCK_SIZE 1024
-
+#define OFFSET(n) ((n) >> LOG_NUM_BANKS)
 // Lab4: Host Helper Functions (allocate your own data structure...)
 
 int nextPowerOf2(float input) {
@@ -35,72 +35,71 @@ float *setBlockSums(int size) {
 
 // Lab4: Kernel Functions
 __global__ void singleKernel(float *outArray, float *inArray, int numElements) {
-	__shared__ float sharedArray[BLOCK_SIZE];
+	__shared__ float sharedArray[BLOCK_SIZE + OFFSET(BLOCK_SIZE)];
 
-	sharedArray[threadIdx.x] = (threadIdx.x < numElements) ? inArray[threadIdx.x] : 0;
+
+	sharedArray[threadIdx.x + OFFSET(threadIdx.x)] = (threadIdx.x < numElements) ? inArray[threadIdx.x] : 0;
 	__syncthreads();
 
 	for(size_t i = 1; i < BLOCK_SIZE; i <<= 1) {
 		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
 
 		if(index < BLOCK_SIZE) {
-			sharedArray[index] += sharedArray[index - i];
+			sharedArray[index + OFFSET(index)] += sharedArray[index - i  + OFFSET(index - i)];
 		}
 		__syncthreads();
 	}
 
-	if(threadIdx.x == 0) {sharedArray[BLOCK_SIZE - 1] = 0;}
-	__syncthreads();
+	if(threadIdx.x == 0) {sharedArray[BLOCK_SIZE - 1 + OFFSET(BLOCK_SIZE - 1)] = 0;}
 
 	for(size_t i = BLOCK_SIZE >> 1; i > 0; i >>= 1) {
 		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
 
 		if(index < BLOCK_SIZE) {
-			float temp = sharedArray[index - i];
-			sharedArray[index - i] = sharedArray[index];
-			sharedArray[index] += temp;
+			float temp = sharedArray[index - i + + OFFSET(index - i)];
+			sharedArray[index - i + OFFSET(index - i)] = sharedArray[index + OFFSET(index)];
+			sharedArray[index + OFFSET(index)] += temp;
 		}
 		__syncthreads();
 	}
 
-	outArray[threadIdx.x] = sharedArray[threadIdx.x];
+	outArray[threadIdx.x] = sharedArray[threadIdx.x + OFFSET(threadIdx.x)];
 }
 
 
 __global__ void upKernel(float *outArray, float *inArray, float *blockSums, int numElements) {
 	size_t globalThread = blockIdx.x * blockDim.x + threadIdx.x;
 
-	__shared__ float sharedArray[BLOCK_SIZE];
-	sharedArray[threadIdx.x] = (globalThread < numElements) ? inArray[globalThread] : 0;
+	__shared__ float sharedArray[BLOCK_SIZE + OFFSET(BLOCK_SIZE)];
+	sharedArray[threadIdx.x + OFFSET(threadIdx.x)] = (globalThread < numElements) ? inArray[globalThread] : 0;
 	__syncthreads();
 
 	for(size_t i = 1; i < BLOCK_SIZE; i <<= 1) {
 		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
 
 		if(index < BLOCK_SIZE) {
-			sharedArray[index] += sharedArray[index - i];
+			sharedArray[index + OFFSET(index)] += sharedArray[index - i + OFFSET(index - i)];
 		}
-
 		__syncthreads();
 	}
 
 	if(threadIdx.x == 0) {
-		blockSums[blockIdx.x] = sharedArray[BLOCK_SIZE - 1];
-		sharedArray[BLOCK_SIZE - 1] = 0;
+		blockSums[blockIdx.x] = sharedArray[BLOCK_SIZE - 1  + OFFSET(BLOCK_SIZE - 1)];
+		sharedArray[BLOCK_SIZE - 1 +  + OFFSET(BLOCK_SIZE - 1)] = 0;
 	}
 
 	for(size_t i = BLOCK_SIZE >> 1; i > 0; i >>= 1) {
-				size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
 
-				if(index < BLOCK_SIZE) {
-					float temp = sharedArray[index - i];
-					sharedArray[index - i] = sharedArray[index];
-					sharedArray[index] += temp;
-				}
-				__syncthreads();
-			}
+		if(index < BLOCK_SIZE) {
+			float temp = sharedArray[index - i + OFFSET(index - i)];
+			sharedArray[index - i + OFFSET(index - i)] = sharedArray[index + OFFSET(index)];
+			sharedArray[index + OFFSET(index)] += temp;
+		}
+		__syncthreads();
+	}
 
-	outArray[globalThread] = sharedArray[threadIdx.x];
+	outArray[globalThread] = sharedArray[threadIdx.x  + OFFSET(threadIdx.x)];
 }
 
 __global__ void addKernel(float *outArray, float *blockSums) {
@@ -108,25 +107,6 @@ __global__ void addKernel(float *outArray, float *blockSums) {
 	outArray[globalThread] += blockSums[blockIdx.x];
 }
 
-
-__global__ void test(float *outArray, float *inArray, int numElements) {
-	__shared__ float sharedArray[BLOCK_SIZE];
-
-	sharedArray[threadIdx.x] = (threadIdx.x < numElements) ? inArray[threadIdx.x] : 0;
-	__syncthreads();
-
-	for(size_t i = 1; i < BLOCK_SIZE; i <<= 1) {
-		size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
-
-		if(index < BLOCK_SIZE) {
-			sharedArray[index] += sharedArray[index - i];
-		}
-		// printf("%d %lu %lu %0.2f %0.2f\n", threadIdx.x, index, index - i, sharedArray[index], sharedArray[index - i]);
-		__syncthreads();
-	}
-
-	outArray[threadIdx.x] = sharedArray[threadIdx.x];
-}
 
 // **===-------- Lab4: Modify the body of this function -----------===**
 // You may need to make multiple kernel calls, make your own kernel
@@ -155,6 +135,7 @@ void prescanArray(float *outArray, float *inArray, float *blockSums, float *bloc
 		addKernel<<<numBlockSums, BLOCK_SIZE>>> (inArray, blockSums);
 		addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray);
 	}
+
 }
 // **===-----------------------------------------------------------===**
 
