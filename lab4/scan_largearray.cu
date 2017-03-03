@@ -174,9 +174,9 @@ runTest( int argc, char** argv)
     float* original = (float*) malloc( mem_size);
     memcpy(original, h_data, mem_size);
 
-	cutStartTimer(timer);
+    cutStartTimer(timer);
     computeGold(reference, h_data, num_elements);
-	cutStopTimer(timer);
+    cutStopTimer(timer);
     printf("\n\n**===-------------------------------------------------===**\n");
     printf("Processing %d elements...\n", num_elements);
     printf("Host CPU Processing time: %f (ms)\n", cutGetTimerValue(timer));
@@ -201,20 +201,21 @@ runTest( int argc, char** argv)
 
     float* blockSums = setBlockSums((num_elements + BLOCK_SIZE-1) / BLOCK_SIZE);
     float* blockSumsSums = setBlockSums(((num_elements + BLOCK_SIZE-1) / BLOCK_SIZE - 1) / BLOCK_SIZE);
+    float* flags = setFlags((num_elements + BLOCK_SIZE-1) / BLOCK_SIZE); 
 
 
     // **===-----------------------------------------------------------===**
 
     // Run just once to remove startup overhead for more accurate performance 
     // measurement
-    prescanArray(d_odata, d_idata, blockSums, blockSumsSums, 16);
+    prescanArray(d_odata, d_idata, blockSums, blockSumsSums, flags, 16);
 
     // Run the prescan
     CUT_SAFE_CALL(cutCreateTimer(&timer));
     cutStartTimer(timer);
     
     // **===-------- Lab4: Modify the body of this function -----------===**
-    prescanArray(d_odata, d_idata, blockSums, blockSumsSums, num_elements);
+    prescanArray(d_odata, d_idata, blockSums, blockSumsSums, flags, num_elements);
     // **===-----------------------------------------------------------===**
     CUDA_SAFE_CALL( cudaThreadSynchronize() );
 
@@ -243,7 +244,7 @@ runTest( int argc, char** argv)
     }
 
     for(size_t i = 0; i < num_elements; i++) {
-    	//	if(reference[i] != h_data[i]) {printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);}
+        //  if(reference[i] != h_data[i]) {printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);}
         //   printf("%d\t%0.2f\t%0.2f\t%0.2f\n", i, reference[i], h_data[i], original[i]);
    }
 
@@ -261,14 +262,15 @@ runTest( int argc, char** argv)
     free( original);
     cudaFree( blockSums);
     cudaFree( blockSumsSums);
+    cudaFree(flags); 
 
 }
 
 
 int ReadFile(float* M, char* file_name, int size)
 {
-	unsigned int elements_read = size;
-	if (cutReadFilef(file_name, &M, &elements_read, true))
+    unsigned int elements_read = size;
+    if (cutReadFilef(file_name, &M, &elements_read, true))
         return 1;
     else
         return 0;
