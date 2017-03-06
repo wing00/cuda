@@ -8,7 +8,7 @@
 #define NUM_BANKS 32
 #define LOG_NUM_BANKS 5
 // Lab4: You can use any other block size you wish.
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 256
 #define OFFSET(n) ((n) >> LOG_NUM_BANKS)
 // Lab4: Host Helper Functions (allocate your own data structure...)
 
@@ -30,7 +30,7 @@ float *setBlockSums(int size) {
 }
 
 float *setFlags(int numBlocks) {
-    float* flagPtr = NULL; 
+    float* flagPtr = NULL;
 
     CUDA_SAFE_CALL(cudaMalloc((void**) &flagPtr, sizeof(int) * numBlocks));
     CUDA_SAFE_CALL(cudaMemset(flagPtr, 0, sizeof(int) * numBlocks));
