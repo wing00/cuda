@@ -116,35 +116,123 @@ __global__ void addKernel(float *outArray, float *blockSums) {
     outArray[globalThread] += blockSums[blockIdx.x];
 }
 
+__global__ void upKernelPow2(float *outArray, float *inArray, float *blockSums, int numElements) {
+    size_t globalThread = blockIdx.x * blockDim.x + threadIdx.x;
+
+    __shared__ float sharedArray[BLOCK_SIZE + OFFSET(BLOCK_SIZE)];
+    sharedArray[threadIdx.x + OFFSET(threadIdx.x)] = inArray[globalThread];
+    __syncthreads();
+
+    for(size_t i = 1; i < BLOCK_SIZE; i <<= 1) {
+        size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+
+        if(index < BLOCK_SIZE) {
+            sharedArray[index + OFFSET(index)] += sharedArray[index - i + OFFSET(index - i)];
+        }
+        __syncthreads();
+    }
+
+    if(threadIdx.x == 0) {
+        blockSums[blockIdx.x] = sharedArray[BLOCK_SIZE - 1  + OFFSET(BLOCK_SIZE - 1)];
+        sharedArray[BLOCK_SIZE - 1 +  + OFFSET(BLOCK_SIZE - 1)] = 0;
+    }
+
+    for(size_t i = BLOCK_SIZE >> 1; i > 0; i >>= 1) {
+        size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+
+        if(index < BLOCK_SIZE) {
+            float temp = sharedArray[index - i + OFFSET(index - i)];
+            sharedArray[index - i + OFFSET(index - i)] = sharedArray[index + OFFSET(index)];
+            sharedArray[index + OFFSET(index)] += temp;
+        }
+        __syncthreads();
+    }
+
+    outArray[globalThread] = sharedArray[threadIdx.x  + OFFSET(threadIdx.x)];
+}
+
+__global__ void singleKernelPow2(float *outArray, float *inArray, int numElements) {
+    __shared__ float sharedArray[BLOCK_SIZE + OFFSET(BLOCK_SIZE)];
+
+
+    sharedArray[threadIdx.x + OFFSET(threadIdx.x)] = inArray[threadIdx.x];
+    __syncthreads();
+
+    for(size_t i = 1; i < BLOCK_SIZE; i <<= 1) {
+        size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+
+        if(index < BLOCK_SIZE) {
+            sharedArray[index + OFFSET(index)] += sharedArray[index - i  + OFFSET(index - i)];
+        }
+        __syncthreads();
+    }
+
+    if(threadIdx.x == 0) {sharedArray[BLOCK_SIZE - 1 + OFFSET(BLOCK_SIZE - 1)] = 0;}
+
+    for(size_t i = BLOCK_SIZE >> 1; i > 0; i >>= 1) {
+        size_t index = 2 * i * ( threadIdx.x  + 1) - 1;
+
+        if(index < BLOCK_SIZE) {
+            float temp = sharedArray[index - i + + OFFSET(index - i)];
+            sharedArray[index - i + OFFSET(index - i)] = sharedArray[index + OFFSET(index)];
+            sharedArray[index + OFFSET(index)] += temp;
+        }
+        __syncthreads();
+    }
+
+    outArray[threadIdx.x] = sharedArray[threadIdx.x + OFFSET(threadIdx.x)];
+}
 
 // **===-------- Lab4: Modify the body of this function -----------===**
 // You may need to make multiple kernel calls, make your own kernel
 // function in this file, and then call them from here.
 void prescanArray(float *outArray, float *inArray, float *blockSums, float *blockSumsSums, float *flags, int numElements)
 {
+    if(isPowerOf2(numElements)) {
+        if(numElements <= BLOCK_SIZE) {
+            singleKernelPow2 <<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
+        } else if (numElements <= BLOCK_SIZE * BLOCK_SIZE) {
+            size_t numBlocks = (numElements - 1) / BLOCK_SIZE + 1;
 
-    if(numElements <= BLOCK_SIZE) {
-        singleKernel <<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
-    } else if (numElements <= BLOCK_SIZE * BLOCK_SIZE) {
-        size_t numBlocks = (numElements - 1) / BLOCK_SIZE + 1;
+            upKernelPow2<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
+            singleKernelPow2<<<1, BLOCK_SIZE>>> (blockSums, blockSums, numBlocks);
+            addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, blockSums);
 
-        upKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
-        singleKernel<<<1, BLOCK_SIZE>>> (blockSums, blockSums, numBlocks);
-        addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, blockSums);
+        } else {
+            size_t numBlocks = (numElements - 1)/ BLOCK_SIZE + 1;
+            size_t numBlockSums = (numBlocks - 1) / BLOCK_SIZE + 1;
 
+            upKernelPow2<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
+            upKernelPow2<<<numBlockSums, BLOCK_SIZE>>> (blockSums, blockSums, blockSumsSums, numBlocks);
+
+            singleKernelPow2<<<1, BLOCK_SIZE>>> (blockSumsSums, blockSumsSums, numBlocks);
+
+            addKernel<<<numBlockSums, BLOCK_SIZE>>> (blockSums, blockSumsSums);
+            addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, blockSums);
+        }
     } else {
-        size_t numBlocks = (numElements - 1)/ BLOCK_SIZE + 1;
-        size_t numBlockSums = (numBlocks - 1) / BLOCK_SIZE + 1;
+        if(numElements <= BLOCK_SIZE) {
+            singleKernel <<<1, BLOCK_SIZE>>> (outArray, inArray, numElements);
+        } else if (numElements <= BLOCK_SIZE * BLOCK_SIZE) {
+            size_t numBlocks = (numElements - 1) / BLOCK_SIZE + 1;
 
-        upKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
-        upKernel<<<numBlockSums, BLOCK_SIZE>>> (blockSums, blockSums, blockSumsSums, numBlocks);
+            upKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
+            singleKernel<<<1, BLOCK_SIZE>>> (blockSums, blockSums, numBlocks);
+            addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, blockSums);
 
-        singleKernel<<<1, BLOCK_SIZE>>> (blockSumsSums, blockSumsSums, numBlocks);
+        } else {
+            size_t numBlocks = (numElements - 1)/ BLOCK_SIZE + 1;
+            size_t numBlockSums = (numBlocks - 1) / BLOCK_SIZE + 1;
 
-        addKernel<<<numBlockSums, BLOCK_SIZE>>> (blockSums, blockSumsSums);
-        addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, blockSums);
+            upKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, inArray, blockSums, numElements);
+            upKernel<<<numBlockSums, BLOCK_SIZE>>> (blockSums, blockSums, blockSumsSums, numBlocks);
+
+            singleKernel<<<1, BLOCK_SIZE>>> (blockSumsSums, blockSumsSums, numBlocks);
+
+            addKernel<<<numBlockSums, BLOCK_SIZE>>> (blockSums, blockSumsSums);
+            addKernel<<<numBlocks, BLOCK_SIZE>>> (outArray, blockSums);
+        }
     }
-
 }
 // **===-----------------------------------------------------------===**
 
